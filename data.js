@@ -1,4 +1,4 @@
-const CHARTS_NUMBER = 2;
+const CHARTS_NUMBER = 1;
 
 function getChartData() {
   const chartData = {
@@ -24,14 +24,21 @@ function getChartData() {
 }
 
 function getChartCoordinates() {
-  const coordinates = new Map()
+  const coordinates = new Map([
+    [0, 2],
+    [-2, 4],
+    [1, -3],
+    [-9, 1]
+  ])
 
-  for (let i = 0; i < 2; i++) {
-    coordinates.set(
-      parseFloat(Math.random() * 10).toFixed(0),
-      parseFloat(Math.random() * 10).toFixed(0)
-    ); 
-  }
+  // for (let i = 0; i < 2; i++) {
+  //   coordinates.set(
+  //     parseFloat(Math.random() * 10).toFixed(0),
+  //     parseFloat(Math.random() * 10).toFixed(0)
+  //   ); 
+  // }
+
+
 
   return coordinates;
 }

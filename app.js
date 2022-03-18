@@ -1,49 +1,46 @@
 //const canvas = document.getElementById("canvas");
 //const ctx = canvas.getContext("2d");
 
-const CANVAS_WIDTH = 600;
-const CANVAS_HEIGHT = 500;
+const CANVAS_WIDTH = 500;
+const CANVAS_HEIGHT = 400;
 
-const scaleX = 25;
-const scaleY = 25;
+// const scaleX = 25;
+// const scaleY = 25;
 
-const xAxisCenter = Math.round(CANVAS_WIDTH / scaleX / 2) * scaleX;
-const yAxisCenter = Math.round(CANVAS_HEIGHT / scaleY / 2) * scaleY;
+// const xAxisCenter = Math.round(CANVAS_WIDTH / scaleX / 2) * scaleX;
+// const yAxisCenter = Math.round(CANVAS_HEIGHT / scaleY / 2) * scaleY;
 
 function createChart(data) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  // canvas.style.width = CANVAS_WIDTH + "px";
-  // canvas.style.height = CANVAS_HEIGHT + "px";
+
   canvas.style.border = data.styles.chartBorder;
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
 
-  const [xMin, xMax, yMin, yMax] = computeBoundaries(data);
-
-  drawGrid(ctx);
-  drawAxes(ctx);
-
-  data.charts.forEach((chart) => {
-    // const name = line[0] здесь может быть имя графика 1:07:27
-    const decCoords = [];
-
-    // canvas coords to decards coords
-    for (const [x, y] of chart[1]) {
-      decCoords.push([xAxisCenter + (x * scaleX), yAxisCenter - y * scaleY]);
-    }
-    console.log(decCoords)
-    drawGraph(ctx, decCoords);
-  });
-
+  drawGrid(ctx, data);
+  
   document.querySelector(".chart-container").appendChild(canvas);
 }
 
 createChart(getChartData());
 
 //сетка
-function drawGrid(ctx) {
-  ctx.font = `${Math.round(scaleX / 3)}px Arial`;
+function drawGrid(ctx, data) {
+  const [xMin, xMax, yMin, yMax] = computeBoundaries(data);
+
+  const [STEPS_X, xRatio] = computeSteps(getAbsSum(xMin, xMax));
+  const [STEPS_Y, yRatio] = computeSteps(getAbsSum(yMin, yMax));
+
+  const scaleX = CANVAS_WIDTH / STEPS_X;
+  const scaleY = CANVAS_HEIGHT / STEPS_Y;
+
+  console.log("scaleX", scaleX)
+
+  const xAxisCenter = Math.round(CANVAS_WIDTH / scaleX / 2) * scaleX;
+  const yAxisCenter = Math.round(CANVAS_HEIGHT / scaleY / 2) * scaleY;
+
+  ctx.font = "12px Arial";
   ctx.strokeStyle = "f5f0e8";
   ctx.textBaseline = "top";
 
@@ -54,21 +51,38 @@ function drawGrid(ctx) {
   for (let i = 0; i < CANVAS_WIDTH; i += scaleX) {
     ctx.moveTo(i, 0);
     ctx.lineTo(i, CANVAS_HEIGHT);
-    ctx.fillText((i - xAxisCenter) / scaleX, i + 5, yAxisCenter + 5);
+    ctx.fillText(
+      Math.round(((i - xAxisCenter) / scaleX) * xRatio),
+      i + 4,
+      yAxisCenter + 4
+    );
   }
 
   for (let i = 0; i < CANVAS_HEIGHT; i += scaleY) {
     ctx.moveTo(0, i);
     ctx.lineTo(CANVAS_WIDTH, i);
-    ctx.fillText((yAxisCenter - i) / scaleY, xAxisCenter + 5, i + 5);
+    ctx.fillText(Math.round(((yAxisCenter - i) / scaleY) * yRatio), xAxisCenter + 4, i + 4);
   }
 
   ctx.stroke();
   ctx.closePath();
+
+  drawAxes(ctx, xAxisCenter, yAxisCenter);
+
+  data.charts.forEach((chart) => {
+    // const name = line[0] здесь может быть имя графика 
+    const decCoords = [];
+
+    // canvas coords to decards coords
+    for (const [x, y] of chart[1]) {
+      decCoords.push([xAxisCenter + x * scaleX, yAxisCenter - y * scaleY]);
+    }
+    drawGraph(ctx, decCoords);
+  });
 }
 
 // главные оси
-function drawAxes(ctx) {
+function drawAxes(ctx, xAxisCenter, yAxisCenter) {
   ctx.beginPath();
   ctx.strokeStyle = "black";
 
@@ -86,12 +100,6 @@ function drawAxes(ctx) {
 
 // график
 function drawGraph(ctx, decCoords) {
-  // for (let i = 0; i <= CANVAS_WIDTH; i++) {
-  //   const x = (i - xAxisCenter) / scaleX;
-  //   const y = Math.pow(x, 2);
-  //   ctx.fillRect(x * scaleX + xAxisCenter, yAxisCenter - scaleY * y, 4, 4);
-  // }
-
   ctx.beginPath();
 
   // styling graphics line
@@ -126,3 +134,32 @@ function computeBoundaries(data) {
 
   return [xMin, xMax, yMin, yMax];
 }
+
+function computeSteps(absSum) {
+  let steps = 0;
+  let ratio = 0;
+ 
+  const ratios = [1, 2, 5];
+  
+  let exp = 0;
+  let exit_loops = false;
+
+  while (!exit_loops) {
+    for (let i = 0; i < ratios.length; i++) {
+      ratio = ratios[i] * Math.pow(10, exp);
+      steps = Math.floor(absSum / ratio);
+      if (steps <= 10) {
+        steps += 2;
+        exit_loops = true;
+        return [steps, ratio]; 
+      }
+    }
+    ++exp;
+  }
+}
+
+function getAbsSum(min, max) {
+  return Math.abs(min) + Math.abs(max)
+}
+
+
