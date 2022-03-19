@@ -1,14 +1,5 @@
-//const canvas = document.getElementById("canvas");
-//const ctx = canvas.getContext("2d");
-
 const CANVAS_WIDTH = 500;
 const CANVAS_HEIGHT = 400;
-
-// const scaleX = 25;
-// const scaleY = 25;
-
-// const xAxisCenter = Math.round(CANVAS_WIDTH / scaleX / 2) * scaleX;
-// const yAxisCenter = Math.round(CANVAS_HEIGHT / scaleY / 2) * scaleY;
 
 function createChart(data) {
   const canvas = document.createElement("canvas");
@@ -18,28 +9,38 @@ function createChart(data) {
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
 
-  drawGrid(ctx, data);
-  
+  const canvasData = computeCanvasData(data.charts);
+
+  drawGrid(ctx, canvasData, data.charts);
+
   document.querySelector(".chart-container").appendChild(canvas);
 }
 
 createChart(getChartData());
 
-//сетка
-function drawGrid(ctx, data) {
-  const [xMin, xMax, yMin, yMax] = computeBoundaries(data);
+function computeCanvasData(charts) {
+  const [xMin, xMax, yMin, yMax] = computeBoundaries(charts);
 
-  const [STEPS_X, xRatio] = computeSteps(getAbsSum(xMin, xMax));
-  const [STEPS_Y, yRatio] = computeSteps(getAbsSum(yMin, yMax));
+  let [xShift, xSteps, xRatio] = getDistance(xMin, xMax);
+  let [yShift, ySteps, yRatio] = getDistance(yMin, yMax);
 
-  const scaleX = CANVAS_WIDTH / STEPS_X;
-  const scaleY = CANVAS_HEIGHT / STEPS_Y;
+  const scaleX = CANVAS_WIDTH / xSteps;
+  const scaleY = CANVAS_HEIGHT / ySteps;
+  return {
+    xRatio,
+    yRatio,
+    xShift,
+    yShift: ySteps - yShift,
+    scaleX,
+    scaleY,
+  };
+}
 
-  console.log("scaleX", scaleX)
-
-  const xAxisCenter = Math.round(CANVAS_WIDTH / scaleX / 2) * scaleX;
-  const yAxisCenter = Math.round(CANVAS_HEIGHT / scaleY / 2) * scaleY;
-
+function drawGrid(
+  ctx,
+  { xRatio, yRatio, xShift, yShift, scaleX, scaleY },
+  charts
+) {
   ctx.font = "12px Arial";
   ctx.strokeStyle = "f5f0e8";
   ctx.textBaseline = "top";
@@ -52,36 +53,41 @@ function drawGrid(ctx, data) {
     ctx.moveTo(i, 0);
     ctx.lineTo(i, CANVAS_HEIGHT);
     ctx.fillText(
-      Math.round(((i - xAxisCenter) / scaleX) * xRatio),
-      i + 4,
-      yAxisCenter + 4
+      Math.round((-xShift + i / scaleX) * xRatio),
+      i + 2,
+      yShift * scaleY + 2
     );
   }
 
   for (let i = 0; i < CANVAS_HEIGHT; i += scaleY) {
     ctx.moveTo(0, i);
     ctx.lineTo(CANVAS_WIDTH, i);
-    ctx.fillText(Math.round(((yAxisCenter - i) / scaleY) * yRatio), xAxisCenter + 4, i + 4);
+    ctx.fillText(
+      Math.round((yShift - i / scaleY) * yRatio),
+      xShift * scaleX + 2,
+      i + 2
+    );
   }
 
   ctx.stroke();
   ctx.closePath();
 
-  drawAxes(ctx, xAxisCenter, yAxisCenter);
+  drawAxes(ctx, xShift * scaleX, yShift * scaleY);
 
-  data.charts.forEach((chart) => {
-    // const name = line[0] здесь может быть имя графика 
-    const decCoords = [];
+  const canvasCoords = [];
 
-    // canvas coords to decards coords
+  charts.forEach((chart) => {
+    // dec coords to canvas coords
     for (const [x, y] of chart[1]) {
-      decCoords.push([xAxisCenter + x * scaleX, yAxisCenter - y * scaleY]);
+      canvasCoords.push([
+        xShift * scaleX + (x * scaleX) / xRatio,
+        yShift * scaleY - (y * scaleY) / yRatio,
+      ]);
     }
-    drawGraph(ctx, decCoords);
+    drawGraph(ctx, canvasCoords);
   });
 }
 
-// главные оси
 function drawAxes(ctx, xAxisCenter, yAxisCenter) {
   ctx.beginPath();
   ctx.strokeStyle = "black";
@@ -98,15 +104,14 @@ function drawAxes(ctx, xAxisCenter, yAxisCenter) {
   ctx.closePath();
 }
 
-// график
-function drawGraph(ctx, decCoords) {
+function drawGraph(ctx, canvasCoords) {
   ctx.beginPath();
 
   // styling graphics line
   ctx.lineWidth = 4;
   ctx.strokeStyle = "green";
 
-  for (const [x, y] of decCoords) {
+  for (const [x, y] of canvasCoords) {
     ctx.lineTo(x, y);
   }
 
@@ -114,13 +119,13 @@ function drawGraph(ctx, decCoords) {
   ctx.closePath();
 }
 
-function computeBoundaries(data) {
+function computeBoundaries(charts) {
   let xMin, xMax, yMin, yMax;
 
   const yCoords = [];
   const xCoords = [];
 
-  data.charts.forEach((chart) => {
+  charts.forEach((chart) => {
     for (const [x, y] of chart[1]) {
       xCoords.push(x);
       yCoords.push(y);
@@ -138,28 +143,45 @@ function computeBoundaries(data) {
 function computeSteps(absSum) {
   let steps = 0;
   let ratio = 0;
- 
+
   const ratios = [1, 2, 5];
-  
+
   let exp = 0;
   let exit_loops = false;
 
   while (!exit_loops) {
     for (let i = 0; i < ratios.length; i++) {
       ratio = ratios[i] * Math.pow(10, exp);
-      steps = Math.floor(absSum / ratio);
+      steps = Math.ceil(absSum / ratio);
       if (steps <= 10) {
         steps += 2;
         exit_loops = true;
-        return [steps, ratio]; 
+        return [steps, ratio];
       }
     }
     ++exp;
   }
 }
 
-function getAbsSum(min, max) {
-  return Math.abs(min) + Math.abs(max)
+function getDistance(min, max) {
+  let distance = 0;
+  let shift = 0;
+  let steps = 0;
+  let ratio = 0;
+
+  if (min < 0 && max < 0) {
+    distance = Math.abs(min);
+    [steps, ratio] = computeSteps(distance);
+    shift = Math.ceil(distance / ratio) + 1;
+  } else if (min > 0 && max > 0) {
+    distance = max;
+    [steps, ratio] = computeSteps(distance);
+    shift = 1;
+  } else {
+    distance = Math.abs(min) + Math.abs(max);
+    [steps, ratio] = computeSteps(distance);
+    shift = Math.ceil(Math.abs(min) / ratio) + 1;
+  }
+
+  return [shift, steps, ratio];
 }
-
-
