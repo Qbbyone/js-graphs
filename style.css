@@ -13,5 +13,20 @@
   margin: auto;
   padding: 1rem;
   border: 1px solid #bbb;
+  position: relative
 }
 
+.chart-message {
+  min-width: 70px;
+  min-height: 60px;
+  font-size: .85rem;
+  padding: 4px;
+  border: 1px solid #bbb;
+  background-color: #fff;
+  z-index: 2;
+  position: absolute;
+}
+
+.hidden {
+  display: none;
+}

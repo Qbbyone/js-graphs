@@ -1,7 +1,11 @@
 const CANVAS_WIDTH = 500;
 const CANVAS_HEIGHT = 400;
 
-function createChart(data) {
+const chartContainer = document.querySelector(".chart-container");
+
+const message = document.createElement("div");
+
+function root(data) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
 
@@ -9,14 +13,70 @@ function createChart(data) {
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
 
-  const canvasData = computeCanvasData(data.charts);
+  const coords = data.charts
+    .map((chart) => chart.coordinates)
+    .reduce((prev, current) => [...prev, ...current]);
 
-  drawGrid(ctx, canvasData, data.charts);
+  const canvasData = computeCanvasData(coords);
 
-  document.querySelector(".chart-container").appendChild(canvas);
+  drawGrid(ctx, canvasData, data);
+  drawAxes(ctx, canvasData);
+
+  data.charts.forEach(
+    (chart) =>
+      (chart.canvasCoordinates = computeCanvasCoords(
+        chart.coordinates,
+        canvasData
+      ))
+  );
+
+  data.charts.forEach((chart) => drawGraph(ctx, chart.canvasCoordinates));
+
+  chartContainer.appendChild(canvas);
+
+  canvas.addEventListener(
+    "mousemove",
+    mousemove.bind(null, canvas, data.charts)
+  );
 }
 
-createChart(getChartData());
+root(getChartData());
+
+function mousemove(canvas, charts, event) {
+  clearMessage();
+  const { left, top } = canvas.getBoundingClientRect();
+
+  const cursorX = event.clientX - left;
+  const cursorY = event.clientY - top;
+
+  charts.forEach((chart) => {
+    for (let i = 0; i < chart.canvasCoordinates.length; i++) {
+      let [x, y] = chart.canvasCoordinates[i];
+      if (
+        cursorX >= x - 5 &&
+        cursorX <= x + 5 &&
+        cursorY >= y - 5 &&
+        cursorY <= y + 5
+      ) {
+        showNodeMessage(x, y, chart.chartName, chart.coordinates[i]);
+        return;
+      }
+    }
+  });
+}
+
+function computeCanvasCoords(coordinates, canvasData) {
+  const canvasCoords = [];
+  coordinates.forEach(([x, y]) => {
+    canvasCoords.push([
+      canvasData.xShift * canvasData.scaleX +
+        (x * canvasData.scaleX) / canvasData.xRatio,
+      canvasData.yShift * canvasData.scaleY -
+        (y * canvasData.scaleY) / canvasData.yRatio,
+    ]);
+  });
+  return canvasCoords;
+}
 
 function computeCanvasData(charts) {
   const [xMin, xMax, yMin, yMax] = computeBoundaries(charts);
@@ -39,7 +99,7 @@ function computeCanvasData(charts) {
 function drawGrid(
   ctx,
   { xRatio, yRatio, xShift, yShift, scaleX, scaleY },
-  charts
+  data
 ) {
   ctx.font = "12px Arial";
   ctx.strokeStyle = "f5f0e8";
@@ -71,24 +131,12 @@ function drawGrid(
 
   ctx.stroke();
   ctx.closePath();
-
-  drawAxes(ctx, xShift * scaleX, yShift * scaleY);
-
-  const canvasCoords = [];
-
-  charts.forEach((chart) => {
-    // dec coords to canvas coords
-    for (const [x, y] of chart[1]) {
-      canvasCoords.push([
-        xShift * scaleX + (x * scaleX) / xRatio,
-        yShift * scaleY - (y * scaleY) / yRatio,
-      ]);
-    }
-    drawGraph(ctx, canvasCoords);
-  });
 }
 
-function drawAxes(ctx, xAxisCenter, yAxisCenter) {
+function drawAxes(ctx, canvasData) {
+  const xAxisCenter = canvasData.scaleX * canvasData.xShift;
+  const yAxisCenter = canvasData.scaleY * canvasData.yShift;
+
   ctx.beginPath();
   ctx.strokeStyle = "black";
 
@@ -117,6 +165,21 @@ function drawGraph(ctx, canvasCoords) {
 
   ctx.stroke();
   ctx.closePath();
+
+  for (const [x, y] of canvasCoords) {
+    drawNode(ctx, x, y);
+  }
+}
+
+function drawNode(ctx, x, y) {
+  const CIRCLE_RADIUS = 3;
+  ctx.beginPath();
+  ctx.strokeStyle = "green";
+  ctx.fillStyle = "green";
+  ctx.arc(x, y, CIRCLE_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.closePath();
 }
 
 function computeBoundaries(charts) {
@@ -125,11 +188,9 @@ function computeBoundaries(charts) {
   const yCoords = [];
   const xCoords = [];
 
-  charts.forEach((chart) => {
-    for (const [x, y] of chart[1]) {
-      xCoords.push(x);
-      yCoords.push(y);
-    }
+  charts.forEach(([x, y]) => {
+    xCoords.push(x);
+    yCoords.push(y);
   });
 
   xMin = Math.min.apply(null, xCoords);
@@ -184,4 +245,21 @@ function getDistance(min, max) {
   }
 
   return [shift, steps, ratio];
+}
+
+// message
+function showNodeMessage(x, y, chartName, [xDec, yDec]) {
+  message.id = "message";
+  message.classList.remove("hidden");
+  message.classList.add("chart-message");
+  message.style.top = y + 30 + "px";
+  message.style.left = x - 10 + "px";
+
+  message.innerText = `${chartName}\nx = ${xDec},\n y = ${yDec}`;
+
+  chartContainer.appendChild(message);
+}
+
+function clearMessage() {
+  message.classList.add("hidden");
 }
