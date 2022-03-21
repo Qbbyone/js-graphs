@@ -2,7 +2,6 @@ const CANVAS_WIDTH = 500;
 const CANVAS_HEIGHT = 400;
 
 const chartContainer = document.querySelector(".chart-container");
-
 const message = document.createElement("div");
 
 function root(data) {
@@ -20,7 +19,7 @@ function root(data) {
   const canvasData = computeCanvasData(coords);
 
   drawGrid(ctx, canvasData, data);
-  drawAxes(ctx, canvasData);
+  drawAxes(ctx, canvasData, data.axesNames);
 
   data.charts.forEach(
     (chart) =>
@@ -30,7 +29,9 @@ function root(data) {
       ))
   );
 
-  data.charts.forEach((chart) => drawGraph(ctx, chart.canvasCoordinates));
+  data.charts.forEach((chart) =>
+    drawGraph(ctx, chart.canvasCoordinates, chart.lineColor)
+  );
 
   chartContainer.appendChild(canvas);
 
@@ -133,7 +134,7 @@ function drawGrid(
   ctx.closePath();
 }
 
-function drawAxes(ctx, canvasData) {
+function drawAxes(ctx, canvasData, axesNames) {
   const xAxisCenter = canvasData.scaleX * canvasData.xShift;
   const yAxisCenter = canvasData.scaleY * canvasData.yShift;
 
@@ -142,22 +143,36 @@ function drawAxes(ctx, canvasData) {
 
   ctx.moveTo(xAxisCenter, 0);
   ctx.lineTo(xAxisCenter, CANVAS_HEIGHT);
-  ctx.fillText("y", xAxisCenter - 20, 0);
+  if (xAxisCenter < CANVAS_WIDTH / 2) {
+    ctx.fillText(axesNames.y, xAxisCenter + 20, 10);
+  } else {
+    ctx.fillText(axesNames.y, xAxisCenter - 50, 10);
+  }
 
   ctx.moveTo(0, yAxisCenter);
   ctx.lineTo(CANVAS_WIDTH, yAxisCenter);
-  ctx.fillText("x", CANVAS_WIDTH - 20, yAxisCenter);
+  if (xAxisCenter < CANVAS_WIDTH / 2) {
+    ctx.fillText(axesNames.x, CANVAS_WIDTH - 50, yAxisCenter - 20);
+  } else {
+    ctx.fillText(
+      axesNames.x,
+      CANVAS_WIDTH - (CANVAS_WIDTH - 20),
+      yAxisCenter - 20
+    );
+  }
 
   ctx.stroke();
   ctx.closePath();
 }
 
-function drawGraph(ctx, canvasCoords) {
+function drawGraph(ctx, canvasCoords, color) {
   ctx.beginPath();
 
   // styling graphics line
   ctx.lineWidth = 4;
-  ctx.strokeStyle = "green";
+  ctx.strokeStyle = color;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
 
   for (const [x, y] of canvasCoords) {
     ctx.lineTo(x, y);
@@ -167,15 +182,15 @@ function drawGraph(ctx, canvasCoords) {
   ctx.closePath();
 
   for (const [x, y] of canvasCoords) {
-    drawNode(ctx, x, y);
+    drawNode(ctx, x, y, color);
   }
 }
 
-function drawNode(ctx, x, y) {
+function drawNode(ctx, x, y, color) {
   const CIRCLE_RADIUS = 3;
   ctx.beginPath();
-  ctx.strokeStyle = "green";
-  ctx.fillStyle = "green";
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
   ctx.arc(x, y, CIRCLE_RADIUS, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
