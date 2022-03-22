@@ -1,25 +1,62 @@
-const CANVAS_WIDTH = 500;
-const CANVAS_HEIGHT = 400;
+/**
+ *  @default
+ */
+let canvasWidth = window.innerWidth - 200;
+let canvasHeight = window.innerHeight - 200;
 
 const chartContainer = document.querySelector(".chart-container");
 const message = document.createElement("div");
 
-function root(data) {
+init(getChartData());
+
+/**
+ * init application by creating canvas element and adding event listeners
+ * @param {object} data - data for creating chart
+ */
+function init(data) {
   const canvas = document.createElement("canvas");
+
+  canvas.addEventListener(
+    "mousemove",
+    mousemove.bind(null, canvas, data.charts)
+  );
+
+  window.addEventListener("resize", render.bind(null, canvas, data));
+
+  render(canvas, data);
+
+  chartContainer.appendChild(canvas);
+}
+
+/**
+ * Render canvas every time page resizes
+ * @param {Object} canvas - HTML canvas element
+ * @param {Object} data - data for creating chart
+ */
+function render(canvas, data) {
   const ctx = canvas.getContext("2d");
 
+  let maxStepNumber;
+
+  if (window.innerWidth < 700) {
+    canvasWidth = window.innerWidth - 120;
+    canvasHeight = window.innerHeight - 120;
+    maxStepNumber = 5;
+  } else {
+    maxStepNumber = 10;
+    canvasWidth = window.innerWidth - 200;
+    canvasHeight = window.innerHeight - 200;
+  }
+
   canvas.style.border = data.styles.chartBorder;
-  canvas.width = CANVAS_WIDTH;
-  canvas.height = CANVAS_HEIGHT;
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
 
   const coords = data.charts
     .map((chart) => chart.coordinates)
     .reduce((prev, current) => [...prev, ...current]);
 
-  const canvasData = computeCanvasData(coords);
-
-  drawGrid(ctx, canvasData, data);
-  drawAxes(ctx, canvasData, data.axesNames);
+  const canvasData = computeCanvasData(coords, maxStepNumber);
 
   data.charts.forEach(
     (chart) =>
@@ -29,20 +66,18 @@ function root(data) {
       ))
   );
 
+  drawGrid(ctx, canvasData, data.styles);
+  drawAxes(ctx, canvasData, data.axesNames);
   data.charts.forEach((chart) =>
     drawGraph(ctx, chart.canvasCoordinates, chart.lineColor)
   );
-
-  chartContainer.appendChild(canvas);
-
-  canvas.addEventListener(
-    "mousemove",
-    mousemove.bind(null, canvas, data.charts)
-  );
 }
 
-root(getChartData());
-
+/**
+ * Get client coordinates to show message when mouse hovers over the graph node
+ * @param {Object} canvas - HTML canvas element
+ * @param {Array.<Object>} charts - list of charts
+ */
 function mousemove(canvas, charts, event) {
   clearMessage();
   const { left, top } = canvas.getBoundingClientRect();
@@ -66,6 +101,12 @@ function mousemove(canvas, charts, event) {
   });
 }
 
+/**
+ * Get coordinates transformed into canvas scaled values
+ * @param {Array.<Array>} coordinates - user coordinates in the Cartesian coordinate system
+ * @param {Object} canvasData - result of calculation ratios
+ * @return {Array.<Array>} canvas scaled coordinates
+ */
 function computeCanvasCoords(coordinates, canvasData) {
   const canvasCoords = [];
   coordinates.forEach(([x, y]) => {
@@ -79,14 +120,20 @@ function computeCanvasCoords(coordinates, canvasData) {
   return canvasCoords;
 }
 
-function computeCanvasData(charts) {
+/**
+ * Get ratios to scale coordinates into canvas coordinates and shift axes
+ * @param {Array.<Object>} charts - list of charts
+ * @param {number} maxStepNumber - maximum steps amount to draw grid
+ * @return {Object} ratios to scale coordinates
+ */
+function computeCanvasData(charts, maxStepNumber) {
   const [xMin, xMax, yMin, yMax] = computeBoundaries(charts);
 
-  let [xShift, xSteps, xRatio] = getDistance(xMin, xMax);
-  let [yShift, ySteps, yRatio] = getDistance(yMin, yMax);
+  let [xShift, xSteps, xRatio] = getDistance(xMin, xMax, maxStepNumber);
+  let [yShift, ySteps, yRatio] = getDistance(yMin, yMax, maxStepNumber);
 
-  const scaleX = CANVAS_WIDTH / xSteps;
-  const scaleY = CANVAS_HEIGHT / ySteps;
+  const scaleX = canvasWidth / xSteps;
+  const scaleY = canvasHeight / ySteps;
   return {
     xRatio,
     yRatio,
@@ -97,22 +144,27 @@ function computeCanvasData(charts) {
   };
 }
 
+/**
+ * Draw dynamic grid
+ * @param {Object} ctx - canvas context object
+ * @param {Object} canvasData - ratios to scale coordinates
+ * @param {Object} styles - default styles from chartData
+ */
 function drawGrid(
   ctx,
   { xRatio, yRatio, xShift, yShift, scaleX, scaleY },
-  data
+  styles
 ) {
-  ctx.font = "12px Arial";
-  ctx.strokeStyle = "f5f0e8";
+  ctx.font = styles.font;
   ctx.textBaseline = "top";
 
   ctx.beginPath();
-  ctx.strokeStyle = "#bbb";
+  ctx.strokeStyle = styles.rowsColor;
   ctx.lineWidth = 0.5;
 
-  for (let i = 0; i < CANVAS_WIDTH; i += scaleX) {
+  for (let i = 0; i < canvasWidth; i += scaleX) {
     ctx.moveTo(i, 0);
-    ctx.lineTo(i, CANVAS_HEIGHT);
+    ctx.lineTo(i, canvasHeight);
     ctx.fillText(
       Math.round((-xShift + i / scaleX) * xRatio),
       i + 2,
@@ -120,9 +172,9 @@ function drawGrid(
     );
   }
 
-  for (let i = 0; i < CANVAS_HEIGHT; i += scaleY) {
+  for (let i = 0; i < canvasHeight; i += scaleY) {
     ctx.moveTo(0, i);
-    ctx.lineTo(CANVAS_WIDTH, i);
+    ctx.lineTo(canvasWidth, i);
     ctx.fillText(
       Math.round((yShift - i / scaleY) * yRatio),
       xShift * scaleX + 2,
@@ -134,6 +186,12 @@ function drawGrid(
   ctx.closePath();
 }
 
+/**
+ * Draw dynamic axes
+ * @param {Object} ctx - canvas context object
+ * @param {Object} canvasData - ratios to scale coordinates
+ * @param {Object} axesNames - default axes names from chartData
+ */
 function drawAxes(ctx, canvasData, axesNames) {
   const xAxisCenter = canvasData.scaleX * canvasData.xShift;
   const yAxisCenter = canvasData.scaleY * canvasData.yShift;
@@ -142,21 +200,21 @@ function drawAxes(ctx, canvasData, axesNames) {
   ctx.strokeStyle = "black";
 
   ctx.moveTo(xAxisCenter, 0);
-  ctx.lineTo(xAxisCenter, CANVAS_HEIGHT);
-  if (xAxisCenter < CANVAS_WIDTH / 2) {
+  ctx.lineTo(xAxisCenter, canvasHeight);
+  if (xAxisCenter < canvasWidth / 2) {
     ctx.fillText(axesNames.y, xAxisCenter + 20, 10);
   } else {
     ctx.fillText(axesNames.y, xAxisCenter - 50, 10);
   }
 
   ctx.moveTo(0, yAxisCenter);
-  ctx.lineTo(CANVAS_WIDTH, yAxisCenter);
-  if (xAxisCenter < CANVAS_WIDTH / 2) {
-    ctx.fillText(axesNames.x, CANVAS_WIDTH - 50, yAxisCenter - 20);
+  ctx.lineTo(canvasWidth, yAxisCenter);
+  if (xAxisCenter < canvasWidth / 2) {
+    ctx.fillText(axesNames.x, canvasWidth - 50, yAxisCenter - 20);
   } else {
     ctx.fillText(
       axesNames.x,
-      CANVAS_WIDTH - (CANVAS_WIDTH - 20),
+      canvasWidth - (canvasWidth - 20),
       yAxisCenter - 20
     );
   }
@@ -165,10 +223,15 @@ function drawAxes(ctx, canvasData, axesNames) {
   ctx.closePath();
 }
 
+/**
+ * Draw graph line connecting canvas coordinates
+ * @param {Object} ctx - canvas context object
+ * @param {Array.<Array>} canvasCoords - canvas coordinates calculated from Cartesian coordinates
+ * @param {string} color - graph line color
+ */
 function drawGraph(ctx, canvasCoords, color) {
   ctx.beginPath();
 
-  // styling graphics line
   ctx.lineWidth = 4;
   ctx.strokeStyle = color;
   ctx.lineCap = "round";
@@ -186,6 +249,13 @@ function drawGraph(ctx, canvasCoords, color) {
   }
 }
 
+/**
+ * Draw graph node (dot)
+ * @param {Object} ctx - canvas context object
+ * @param {number} x - canvas x coordinate
+ * @param {number} y - canvas y coordinate
+ * @param {string} color - node color
+ */
 function drawNode(ctx, x, y, color) {
   const CIRCLE_RADIUS = 3;
   ctx.beginPath();
@@ -197,9 +267,14 @@ function drawNode(ctx, x, y, color) {
   ctx.closePath();
 }
 
+/**
+ * Compute max and min values of x and y of all charts from chartData
+ * @param {Array.<Array>} charts - Cartesian client's coordinates from chartData
+ * @return {Array.<number>} - four values of max/min x and y
+ */
 function computeBoundaries(charts) {
   let xMin, xMax, yMin, yMax;
-
+ 
   const yCoords = [];
   const xCoords = [];
 
@@ -216,7 +291,43 @@ function computeBoundaries(charts) {
   return [xMin, xMax, yMin, yMax];
 }
 
-function computeSteps(absSum) {
+/**
+ * Get distance between min and max values by calculating Abs sum
+ * @param {number} min - min value
+ * @param {number} max - max value
+ * @param {number} maxmaxStepNumber - max value of steps for different screen sizes
+ * @return {Array.<number>} - three values of axes shift, amount of grod steps (rows), ratio of a step
+ */
+function getDistance(min, max, maxStepNumber) {
+  let distance = 0;
+  let shift = 0;
+  let steps = 0;
+  let ratio = 0;
+
+  if (min < 0 && max < 0) {
+    distance = Math.abs(min);
+    [steps, ratio] = computeSteps(distance, maxStepNumber);
+    shift = Math.ceil(distance / ratio) + 1;
+  } else if (min > 0 && max > 0) {
+    distance = max;
+    [steps, ratio] = computeSteps(distance, maxStepNumber);
+    shift = 1;
+  } else {
+    distance = Math.abs(min) + Math.abs(max);
+    [steps, ratio] = computeSteps(distance, maxStepNumber);
+    shift = Math.ceil(Math.abs(min) / ratio) + 1;
+  }
+
+  return [shift, steps, ratio];
+}
+
+/**
+ * Get amount of steps (row) to draw grid
+ * @param {number} absSum - distance between max and min value
+ * @param {number} maxmaxStepNumber - max value of steps for different screen sizes
+ * @return {Array.<number>} - two values of grid steps and step ratio
+ */
+function computeSteps(absSum, maxStepNumber) {
   let steps = 0;
   let ratio = 0;
 
@@ -229,7 +340,7 @@ function computeSteps(absSum) {
     for (let i = 0; i < ratios.length; i++) {
       ratio = ratios[i] * Math.pow(10, exp);
       steps = Math.ceil(absSum / ratio);
-      if (steps <= 10) {
+      if (steps <= maxStepNumber) {
         steps += 2;
         exit_loops = true;
         return [steps, ratio];
@@ -239,42 +350,28 @@ function computeSteps(absSum) {
   }
 }
 
-function getDistance(min, max) {
-  let distance = 0;
-  let shift = 0;
-  let steps = 0;
-  let ratio = 0;
-
-  if (min < 0 && max < 0) {
-    distance = Math.abs(min);
-    [steps, ratio] = computeSteps(distance);
-    shift = Math.ceil(distance / ratio) + 1;
-  } else if (min > 0 && max > 0) {
-    distance = max;
-    [steps, ratio] = computeSteps(distance);
-    shift = 1;
-  } else {
-    distance = Math.abs(min) + Math.abs(max);
-    [steps, ratio] = computeSteps(distance);
-    shift = Math.ceil(Math.abs(min) / ratio) + 1;
-  }
-
-  return [shift, steps, ratio];
-}
-
-// message
-function showNodeMessage(x, y, chartName, [xDec, yDec]) {
+/**
+ * Show message box with node informatiom
+ * @param {number} x - max x value of canvas coordinates to position the message box
+ * @param {number} y - max y value of canvas coordinates to position the message box
+ * @param {string} chartName - name of this node's chart
+ * @param {Array.<number>} - Cartesian x and y coordinates of this node to show in message
+ */
+function showNodeMessage(x, y, chartName, [xText, yText]) {
   message.id = "message";
   message.classList.remove("hidden");
   message.classList.add("chart-message");
   message.style.top = y + 30 + "px";
   message.style.left = x - 10 + "px";
 
-  message.innerText = `${chartName}\nx = ${xDec},\n y = ${yDec}`;
+  message.innerText = `${chartName}\nx = ${xText},\n y = ${yText}`;
 
   chartContainer.appendChild(message);
 }
 
+/**
+ * Clear message box
+ */
 function clearMessage() {
   message.classList.add("hidden");
 }

@@ -1,16 +1,16 @@
+/**
+ *  @constant
+ *  @default
+ */
 const CHARTS_NUMBER = 3;
-const lineColors = {
-  red: "#B80D0D",
-  green: "#39941C",
-  blue: "#5B65A6",
-  orange: "#F57401",
-  purple: "#68108D",
-  teal: "#008080",
-  pink: "#FD62FF",
-  black: "#101010",
-  gray: "#5F5A5A",
-};
+const NODES_NUMBER = 4;
+const numberVariants = ["positive", "negative"];
+const ranges = [10, 100];
 
+/**
+ * Get all necessary data for creating chart
+ * @return {object} chart data.
+ */
 function getChartData() {
   const chartData = {
     charts: [],
@@ -19,7 +19,7 @@ function getChartData() {
       rowsColor: "#bbb",
       rowLineWidth: 0.5,
       graphLineWidth: 4,
-      font: "normal 20px Arial",
+      font: "12px Arial",
       fontColor: "#96a2aa",
     },
     axesNames: {
@@ -31,7 +31,7 @@ function getChartData() {
   for (let i = 1; i <= CHARTS_NUMBER; i++) {
     const chart = {
       chartName: `chart_${i}`,
-      lineColor: getRandomLineColor(chartData),
+      lineColor: getRandomLineColor(chartData.charts),
       coordinates: getChartCoordinates(),
     };
     chartData.charts.push(chart);
@@ -40,34 +40,54 @@ function getChartData() {
   return chartData;
 }
 
+/**
+ * Get random chart coordinates for testing
+ * @return {Array.<number>} x and y coordinates.
+ */
 function getChartCoordinates() {
-  // const coordinates = new Map();
-
-  // for (let i = 0; i < 4; i++) {
-  //   coordinates.set(
-  //     parseFloat(Math.random() * 10).toFixed(0),
-  //     parseFloat(Math.random() * 10).toFixed(0)
-  //   );
-  // }
-
   let coordinates = [];
 
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < NODES_NUMBER; i++) {
     coordinates.push([
-      (parseFloat(Math.random() * 100).toFixed(0)),
-      (parseFloat(Math.random() * 10).toFixed(0)),
+      getTestCoordinates(
+        ranges[Math.floor(Math.random() * ranges.length)],
+        numberVariants[Math.floor(Math.random() * numberVariants.length)]
+      ),
+      getTestCoordinates(
+        ranges[Math.floor(Math.random() * ranges.length)],
+        numberVariants[Math.floor(Math.random() * numberVariants.length)]
+      ),
     ]);
   }
 
   return coordinates;
 }
 
-function getRandomLineColor(chartData) {
-  let color =  `#${Math.floor(Math.random()*16777215).toString(16)}`;
-  chartData.charts.forEach(chart => {
-    if(color === chart.lineColor) {
-      color = getRandomLineColor(chartData)
+/**
+ * Get random graph line hex color for testing
+ * @param {Array.<Object>} charts - list of charts to check if the random color is unique.
+ * @return {string} hex formated color
+ */
+function getRandomLineColor(charts) {
+  let color = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+  charts.forEach((chart) => {
+    if (color === chart.lineColor) {
+      color = getRandomLineColor(chartData);
     }
-  })
-  return color
+  });
+  return color;
+}
+
+/**
+ * Get random coordinate value 
+ * @param {number} range - limit of Math.random function 
+ * @param {string} variant - positive or negative 
+ * @return {number} random coordinate value 
+ */
+function getTestCoordinates(range, variant) {
+  let randomNum = parseFloat(Math.random() * range).toFixed(3);
+  if (variant === "negative") {
+    randomNum *= -1;
+  }
+  return randomNum;
 }
